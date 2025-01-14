@@ -1,0 +1,30 @@
+gearImage = imread('gear.jpg');
+
+%% Convert to grayscale and threshold
+gearGray = rgb2gray(gearImage);
+gearBW = gearGray > 105;
+imshow(gearBW)
+
+%% Remove the small spots
+gearBW = bwareaopen(gearBW, 20);
+%%%%%%%%%%%%%%
+g=double(gearBW) 
+
+%%%%%%%%%%%%%% a simple way to produce a binary pattern from the pic
+g=g(:,:,1); 
+
+%%%%%%%%%%%%%generate random phase from 0-2pi
+RandomPhase=normrnd(0,2*pi,size(g,1),size(g,2)); 
+%save('RandomPhase.mat','RandomPhase')
+%load('RandomPhase.mat')
+
+%%%%%%%%%%%%%%combine the binary pattern with the random pahse 
+IP0=g.*exp(1i*RandomPhase);
+
+%%%%%%%%%%%%%%produce the speckles pattern through a FFT transform
+speckle=abs(fftshift(fft2(IP0,600,600))).^2;
+
+%%%%%%%%%%%%%%simple norm the data,
+speckle=speckle./max(max(speckle(:,:)));
+imshow(speckle)
+%imwrite(speckle, 'speckleGear.png');
