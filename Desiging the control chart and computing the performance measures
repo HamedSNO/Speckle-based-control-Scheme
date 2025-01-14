@@ -1,0 +1,269 @@
+clear all;
+close all;
+clc;
+
+% Parameters
+n_simulations = 20000;  % Number of in-control simulation runs
+alpha = 0.05;            % Overall significance level for UCL
+roi_size = 50;           % Size of each ROI (e.g., 15x15 pixels)
+lambda = 0.2;            % Smoothing parameter for EWMA
+k=1;
+% Load speckle pattern
+speckle = double(imread('speckleGear.png'));
+g2=speckle;
+% Define the Blackman window
+a0 = 0.42; a1 = 0.5; a2 = 0.08;
+T = size(g2, 1);
+z = 0:T-1;
+w = a0 - a1 * cos(2*pi*z/(T-1)) + a2 * cos(4*pi*z/(T-1));
+W2 = w' * w;
+
+% High-pass filter
+[u, v] = meshgrid(linspace(-1, 1, T), linspace(-1, 1, T));
+X = cos(pi*u) .* cos(pi*v);
+H2 = (1 - X) .* (2 - X);
+
+% Define Non-overlapping ROIs
+roi_indices = {};
+for x = 1:roi_size:(size(g2, 1) - roi_size + 1)
+    for y = 1:roi_size:(size(g2, 2) - roi_size + 1)
+        roi_indices{end+1} = [x, y, roi_size, roi_size]; %#ok<AGROW>
+    end
+end
+n_rois = length(roi_indices);
+%% 
+
+% Phase I: Compute In-Control Statistics and EWMA
+in_control_EWMA = zeros();  % Store EWMA statistics
+
+% Preallocate storage for magnitude differences
+in_control_magnitudes = zeros();
+
+r=0;
+for i = 1:n_simulations
+    shift_amount = normrnd(0, 1, [1, 2]);
+    % Apply the shift using imtranslate
+    speckle_cpu = double(imtranslate(imread('speckleGear.png'), shift_amount, 'bilinear', 'OutputView', 'same'));
+    for j = 1:n_rois
+        roi_coords = roi_indices{j};
+        roi_window = speckle_cpu(roi_coords(1):roi_coords(1)+roi_size-1, ...
+                                 roi_coords(2):roi_coords(2)+roi_size-1);
+        roi_window_ref = g2(roi_coords(1):roi_coords(1)+roi_size-1, ...
+                            roi_coords(2):roi_coords(2)+roi_size-1);
+        
+        % Apply window and FFT
+        f2 = roi_window .* W2(1:roi_size, 1:roi_size);
+        F2 = fftshift(fft2(f2));
+        F2_mag = abs(F2);
+        F2_prime = F2_mag .* H2(1:roi_size, 1:roi_size);
+        
+        f1_ref = roi_window_ref .* W2(1:roi_size, 1:roi_size);
+        F1_ref = fftshift(fft2(f1_ref));
+        F1_ref_mag = abs(F1_ref);
+        F1_prime_ref = F1_ref_mag .* H2(1:roi_size, 1:roi_size);
+        
+        % Compute absolute magnitude differences
+        magnitude_diff = abs(F2_prime(:) - F1_prime_ref(:));
+        % Calculate median of magnitude differences within the ROI
+        mean_diff = max(magnitude_diff);
+        in_control_magnitudes(i, j) = mean_diff;  
+
+    end
+
+    % Compute the global statistic for this simulation (median of all ROIs)
+    global_stat = max(in_control_magnitudes(i, :));
+    % Update EWMA
+    if i == 1
+        in_control_EWMA(i) = global_stat;  % Initialize EWMA with first global_stat
+    else
+        in_control_EWMA(i) = lambda * global_stat + (1 - lambda) * in_control_EWMA(i-1);
+    end
+    r=r+1
+end
+
+% Determine EWMA Control Limits empirically from Phase I EWMA statistics
+% For non-normal data, use percentiles
+UCL_EWMA = prctile(in_control_EWMA, 100 - (alpha * 100));
+
+%save('in_control_magnitudesG2_200.mat', 'in_control_magnitudes');
+
+
+%% Second Algorithm: Using Saved In-Control Magnitudes
+
+% Parameters (Ensure these match the first algorithm)
+lambda = 0.2;             % Smoothing parameter for EWMA
+n_simulations = 20000;    % Number of simulations
+alpha = 0.05;             % Significance level for UCL
+
+% Load the saved in-control magnitudes
+data = load('in_control_magnitudesG2_50.mat');
+if isfield(data, 'in_control_magnitudes')
+    in_control_magnitudes = data.in_control_magnitudes;
+else
+    error('The variable "in_control_magnitudes" was not found in the .mat file.');
+end
+
+% Verify the dimensions of in_control_magnitudes
+[n_loaded_simulations, n_rois] = size(in_control_magnitudes);
+if n_loaded_simulations ~= n_simulations
+    warning('Number of simulations in the loaded data (%d) does not match the expected (%d).', n_loaded_simulations, n_simulations);
+    n_simulations = n_loaded_simulations;
+end
+
+% Initialize EWMA statistics
+in_control_EWMA = zeros(n_simulations, 1);  % Preallocate for speed
+
+% Compute EWMA statistics
+for i = 1:n_simulations
+    % Extract the global statistic for the current simulation
+    global_stat = max(in_control_magnitudes(i, :));
+
+    % Update EWMA
+    if i == 1
+        in_control_EWMA(i) = global_stat;  % Initialize with the first statistic
+    else
+        in_control_EWMA(i) = lambda * global_stat + (1 - lambda) * in_control_EWMA(i-1);
+    end
+end
+
+UCL_EWMA = prctile(in_control_EWMA, 100 - (alpha * 100));
+
+%% Computing the ARL
+
+%%% Phase II: Monitoring with EWMA Control Chart
+%UCL_EWMA =4.015 *10^3;
+% Number of monitoring simulations
+n_monitoring = 4000;
+
+% Preallocate run lengths
+run_lengths = zeros();
+
+parfor sim = 1:n_monitoring
+    run_length = 0; % Initialize run length
+    ewma_stat = in_control_EWMA(end);  % Initialize EWMA statistic to last Phase I EWMA
+    shift_detected = false;
+    while ~shift_detected
+        % Apply shifts to specific regions
+        % Customize the shift logic as per your application
+        % Example: Apply shifts to specific ROIs or regions
+        
+
+  speckleImage2 =imread('speckleGear.png');
+
+% Define the entire image size
+[rows, cols] = size(speckleImage2);
+
+% Initialize the mask to track shifted areas
+shifted_mask = false(rows, cols);
+% Shift and update mask for Region 1
+Tempspeckle1 = speckleImage2(120:139, 120:139);  % Random region 1
+shift_amount1 = normrnd(00., 1, [1, 2]);
+Tempspeckle1_shifted = imtranslate(Tempspeckle1, shift_amount1, 'bilinear', 'OutputView', 'same');
+speckleImage2(120:139, 120:139) = Tempspeckle1_shifted;
+% Update the mask to include the new shifted region
+shifted_mask = update_mask(shifted_mask, [120,139, 120,139], shift_amount1, rows, cols);
+
+% Shift and update mask for Region 2
+Tempspeckle2 = speckleImage2(rows-309:rows-290, cols-309:cols-290);  % Random region 2
+shift_amount2 = normrnd(00., 1, [1, 2]);
+Tempspeckle2_shifted = imtranslate(Tempspeckle2, shift_amount2, 'bilinear', 'OutputView', 'same');
+speckleImage2(rows-309:rows-290, cols-309:cols-290) = Tempspeckle2_shifted;
+% Update the mask to include the new shifted region
+shifted_mask = update_mask(shifted_mask, [rows-309, rows-290, cols-309, cols-290], shift_amount2, rows, cols);
+
+% Shift and update mask for Region 3
+%(rows-69:rows-50, cols-69:cols-50)
+Tempspeckle3 = speckleImage2(rows-169:rows-150, cols-169:cols-150);  % Random region 3
+shift_amount3 = normrnd(00., 1, [1, 2]);
+Tempspeckle3_shifted = imtranslate(Tempspeckle3, shift_amount3, 'bilinear', 'OutputView', 'same');
+speckleImage2(rows-169:rows-150, cols-169:cols-150) = Tempspeckle3_shifted;
+% Update the mask to include the new shifted region
+shifted_mask = update_mask(shifted_mask, [rows-169,rows-150, cols-169,cols-150], shift_amount3, rows, cols);
+
+
+% Shift and update mask for Region 4
+Tempspeckle4 = speckleImage2(rows-189:rows-150, 120:159);  % Random region 4
+shift_amount4 = normrnd(00., 1, [1, 2]);
+Tempspeckle4_shifted = imtranslate(Tempspeckle4, shift_amount4, 'bilinear', 'OutputView', 'same');
+speckleImage2(rows-189:rows-150, 120:159) = Tempspeckle4_shifted;
+% Update the mask to include the new shifted region
+shifted_mask = update_mask(shifted_mask, [rows-189,rows-150, 120,159], shift_amount4, rows, cols);
+
+% Shift and update mask for Region 5
+Tempspeckle5 = speckleImage2(120:159,cols-189: cols-150);  % Random region 5
+shift_amount5 = normrnd(00., 1, [1, 2]);
+Tempspeckle5_shifted = imtranslate(Tempspeckle5, shift_amount5, 'bilinear', 'OutputView', 'same');
+speckleImage2(120:159,cols-189:cols-150) = Tempspeckle5_shifted;
+% Update the mask to include the new shifted region
+shifted_mask = update_mask(shifted_mask, [120, 159, cols-189, cols-150], shift_amount5, rows, cols);
+
+% Apply shift to the rest of the image, excluding the shifted regions
+remainingImage = speckleImage2;
+remainingImage(shifted_mask) = 0;  % Zero out the regions already shifted
+
+% Apply the global shift to the remaining part of the image
+shift_amount_global = normrnd(00., 1, [1, 2]);
+%shift_amount_global =  [0, 0];
+remainingImage_shifted = imtranslate(remainingImage, shift_amount_global, 'bilinear', 'OutputView', 'same');
+
+% Combine the shifted regions and the globally shifted remaining image
+speckleImage2(~shifted_mask) = remainingImage_shifted(~shifted_mask);
+
+speckle_cpu = double(speckleImage2);   
+
+        % Compute magnitude differences for each ROI
+        magdiffs = zeros(n_rois, 1);
+        for j = 1:n_rois
+            roi_coords = roi_indices{j};
+            roi_window = speckle_cpu(roi_coords(1):roi_coords(1)+roi_coords(3)-1, ...
+                                     roi_coords(2):roi_coords(2)+roi_coords(4)-1);
+            roi_window_ref = g2(roi_coords(1):roi_coords(1)+roi_coords(3)-1, ...
+                                roi_coords(2):roi_coords(2)+roi_coords(4)-1);
+
+            % Frequency domain transformations
+            f2 = roi_window .* W2(1:roi_size, 1:roi_size);
+            F2 = fftshift(fft2(f2));
+            F2_mag = abs(F2);
+            F2_prime = F2_mag .* H2(1:roi_size, 1:roi_size);
+
+            f1_ref = roi_window_ref .* W2(1:roi_size, 1:roi_size);
+            F1_ref = fftshift(fft2(f1_ref));
+            F1_ref_mag = abs(F1_ref);
+            F1_prime_ref = F1_ref_mag .* H2(1:roi_size, 1:roi_size);
+
+            
+            % Compute absolute magnitude differences
+            magnitude_diff = abs(F2_prime(:) - F1_prime_ref(:));
+            
+            % Calculate max of magnitude differences within the ROI
+            median_diff = max(magnitude_diff);
+            
+            magdiffs(j) = median_diff;
+        end
+
+        % Aggregate Statistic (median of ROIs)
+        global_stat = max(magdiffs);
+        
+        % Update EWMA
+        ewma_stat = lambda * global_stat + (1 - lambda) * ewma_stat;
+        
+        % Check if EWMA exceeds UCL
+        if ewma_stat > UCL_EWMA
+            shift_detected = true;  % Shift detected
+        end
+        
+        % Increment run length
+        run_length = run_length + 1;
+    end
+ 
+    % Store run length
+    run_lengths(sim) = run_length;
+    fprintf('iter=%d run_length=%d\n', sim, run_length)
+end
+
+% Compute ARL (Average Run Length) and SDRL (Standard Deviation)
+ARL_EWMA = mean(run_lengths);
+SDRL_EWMA = std(run_lengths);
+
+fprintf('In-control ARL (EWMA): %.2f\n', ARL_EWMA);
+fprintf('In-control SDRL (EWMA): %.2f\n', SDRL_EWMA);
