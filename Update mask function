@@ -1,0 +1,17 @@
+% Function to update the mask based on shifted region boundaries
+function mask = update_mask(mask, original_coords, shift_amount, rows, cols)
+    % Calculate new shifted coordinates
+    start_row = max(1, original_coords(1) + floor(shift_amount(1)));
+    end_row = min(rows, original_coords(2) + ceil(shift_amount(1)));
+    start_col = max(1, original_coords(3) + floor(shift_amount(2)));
+    end_col = min(cols, original_coords(4) + ceil(shift_amount(2)));
+    
+    % Ensure the calculated boundaries are within the image dimensions
+    start_row = max(1, start_row);
+    end_row = min(rows, end_row);
+    start_col = max(1, start_col);
+    end_col = min(cols, end_col);
+    
+    % Update the mask with the new boundaries of the shifted region
+    mask(start_row:end_row, start_col:end_col) = true;
+end
