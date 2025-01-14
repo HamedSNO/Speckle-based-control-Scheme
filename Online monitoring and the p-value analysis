@@ -1,0 +1,325 @@
+
+
+
+#################### only region 3 shifted
+
+speckleImage2 =imread('speckleGear2.png');
+% Define the entire image size
+[rows, cols] = size(speckleImage2);
+
+% Initialize the mask to track shifted areas
+shifted_mask = false(rows, cols);
+Tempspeckle3 = speckleImage2(rows-169:rows-150, cols-169:cols-150);  % Random region 3
+shift_amount3 = normrnd(003., 1, [1, 2]);
+Tempspeckle3_shifted = imtranslate(Tempspeckle3, shift_amount3, 'bilinear', 'OutputView', 'same');
+speckleImage2(rows-169:rows-150, cols-169:cols-150) = Tempspeckle3_shifted;
+% Update the mask to include the new shifted region
+shifted_mask = update_mask(shifted_mask, [rows-169,rows-150, cols-169,cols-150], shift_amount3, rows, cols);
+
+% Apply shift to the rest of the image, excluding the shifted regions
+remainingImage = speckleImage2;
+remainingImage(shifted_mask) = 0;  % Zero out the regions already shifted
+
+% Apply the global shift to the remaining part of the image
+shift_amount_global = normrnd(00., 1, [1, 2]);
+%shift_amount_global =  [0, 0];
+remainingImage_shifted = imtranslate(remainingImage, shift_amount_global, 'bilinear', 'OutputView', 'same');
+
+% Combine the shifted regions and the globally shifted remaining image
+speckleImage2(~shifted_mask) = remainingImage_shifted(~shifted_mask);
+
+speckle_cpu = double(speckleImage2);   
+%imwrite(speckleImage2, 'speckle_cpu10.png');
+
+%
+
+%imwrite(speckle_cpu, 'speckle_cpu2.png');
+        % Compute magnitude differences for each ROI
+p_values = zeros(n_rois, 1);
+        magdiffs = zeros(n_rois, 1);
+        for j = 1:n_rois
+            roi_coords = roi_indices{j};
+            roi_window = speckle_cpu(roi_coords(1):roi_coords(1)+roi_coords(3)-1, ...
+                                     roi_coords(2):roi_coords(2)+roi_coords(4)-1);
+            roi_window_ref = g2(roi_coords(1):roi_coords(1)+roi_coords(3)-1, ...
+                                roi_coords(2):roi_coords(2)+roi_coords(4)-1);
+
+            % Frequency domain transformations
+            f2 = roi_window .* W2(1:roi_size, 1:roi_size);
+            F2 = fftshift(fft2(f2));
+            F2_mag = abs(F2);
+            F2_prime = F2_mag .* H2(1:roi_size, 1:roi_size);
+
+            f1_ref = roi_window_ref .* W2(1:roi_size, 1:roi_size);
+            F1_ref = fftshift(fft2(f1_ref));
+            F1_ref_mag = abs(F1_ref);
+            F1_prime_ref = F1_ref_mag .* H2(1:roi_size, 1:roi_size);
+
+            
+            % Compute absolute magnitude differences
+            magnitude_diff = abs(F2_prime(:) - F1_prime_ref(:));
+            
+            % Calculate median of magnitude differences within the ROI
+            median_diff = max(magnitude_diff);
+            
+            magdiffs(j) = median_diff;
+            p_values(j) = sum(in_control_magnitudes(:, j) >= magdiffs(j)) / n_simulations;
+
+        end
+%{
+% ewma_stat = in_control_EWMA(end);  % Initialize EWMA statistic to last Phase I EWM
+        % Aggregate Statistic (median of ROIs)
+        global_stat = max(magdiffs)
+        
+        % Update EWMA
+        ewma_stat = lambda * global_stat + (1 - lambda) * ewma_stat
+ if ewma_stat > UCL_EWMA
+    fprintf('Global OC detected!\n');
+    fprintf('Global GLR Statistic: %.2f\n', ewma_stat);
+    fprintf('UCL: %.2f\n\n', UCL_EWMA);  % Extra newline for spacing
+else
+    fprintf('No global OC detected.\n');
+    fprintf('Global GLR Statistic: %.2f\n', ewma_stat);
+    fprintf('UCL: %.2f\n\n', UCL_EWMA);  % Extra newline for spacing
+
+end
+% Determine EWMA Control Limits empirically from Phase I EWMA statistics
+%
+%}
+%FDR Control using Benjamini-Yekutieli (to handle multiple comparisons)
+[sorted_p_values, sorted_indices] = sort(p_values);
+m = length(p_values);
+q = 0.05;
+c_m = sum(1./(1:m));  % Benjamini-Yekutieli correction
+by_threshold = (1:m)' * (q / (m * c_m));
+significant_flags = sorted_p_values <= by_threshold;
+significant_rois = sorted_indices(significant_flags);
+
+fprintf('Number of significant ROIs after dependent FDR (Benjamini-Yekutieli): %d\n', length(significant_rois));
+if ~isempty(significant_rois)
+    fprintf('Significant ROIs (with dependent FDR control):\n');
+    disp(significant_rois);
+else
+    fprintf('No significant ROIs detected.\n');
+end
+
+
+
+#################### only region 5 shifted
+        
+  speckleImage2 =imread('speckleGear2.png');
+
+% Define the entire image size
+[rows, cols] = size(speckleImage2);
+
+% Initialize the mask to track shifted areas
+shifted_mask = false(rows, cols);
+% Shift and update mask for Region 1
+%(50:69, 50:69)
+Tempspeckle5 = speckleImage2(120:159,cols-189: cols-150);  % Random region 5
+shift_amount5 = normrnd(004., 1, [1, 2]);
+Tempspeckle5_shifted = imtranslate(Tempspeckle5, shift_amount5, 'bilinear', 'OutputView', 'same');
+speckleImage2(120:159,cols-189:cols-150) = Tempspeckle5_shifted;
+% Update the mask to include the new shifted region
+shifted_mask = update_mask(shifted_mask, [120, 159, cols-189, cols-150], shift_amount5, rows, cols);
+
+
+% Apply shift to the rest of the image, excluding the shifted regions
+remainingImage = speckleImage2;
+remainingImage(shifted_mask) = 0;  % Zero out the regions already shifted
+
+% Apply the global shift to the remaining part of the image
+shift_amount_global = normrnd(00., 1, [1, 2]);
+%shift_amount_global =  [0, 0];
+remainingImage_shifted = imtranslate(remainingImage, shift_amount_global, 'bilinear', 'OutputView', 'same');
+
+% Combine the shifted regions and the globally shifted remaining image
+speckleImage2(~shifted_mask) = remainingImage_shifted(~shifted_mask);
+
+speckle_cpu = double(speckleImage2);   
+
+p_values = zeros(n_rois, 1);
+        magdiffs = zeros(n_rois, 1);
+        for j = 1:n_rois
+            roi_coords = roi_indices{j};
+            roi_window = speckle_cpu(roi_coords(1):roi_coords(1)+roi_coords(3)-1, ...
+                                     roi_coords(2):roi_coords(2)+roi_coords(4)-1);
+            roi_window_ref = g2(roi_coords(1):roi_coords(1)+roi_coords(3)-1, ...
+                                roi_coords(2):roi_coords(2)+roi_coords(4)-1);
+
+            % Frequency domain transformations
+            f2 = roi_window .* W2(1:roi_size, 1:roi_size);
+            F2 = fftshift(fft2(f2));
+            F2_mag = abs(F2);
+            F2_prime = F2_mag .* H2(1:roi_size, 1:roi_size);
+
+            f1_ref = roi_window_ref .* W2(1:roi_size, 1:roi_size);
+            F1_ref = fftshift(fft2(f1_ref));
+            F1_ref_mag = abs(F1_ref);
+            F1_prime_ref = F1_ref_mag .* H2(1:roi_size, 1:roi_size);
+
+            
+            % Compute absolute magnitude differences
+            magnitude_diff = abs(F2_prime(:) - F1_prime_ref(:));
+            
+            % Calculate median of magnitude differences within the ROI
+            median_diff = max(magnitude_diff);
+            
+            magdiffs(j) = median_diff;
+            p_values(j) = sum(in_control_magnitudes(:, j) >= magdiffs(j)) / n_simulations;
+
+        end
+        %{
+ ewma_stat = in_control_EWMA(end);  % Initialize EWMA statistic to last Phase I EWM
+        % Aggregate Statistic (median of ROIs)
+        global_stat = max(magdiffs)
+        
+        % Update EWMA
+        ewma_stat = lambda * global_stat + (1 - lambda) * ewma_stat
+ if ewma_stat > UCL_EWMA
+    fprintf('Global OC detected!\n');
+    fprintf('Global GLR Statistic: %.2f\n', ewma_stat);
+    fprintf('UCL: %.2f\n\n', UCL_EWMA);  % Extra newline for spacing
+else
+    fprintf('No global OC detected.\n');
+    fprintf('Global GLR Statistic: %.2f\n', ewma_stat);
+    fprintf('UCL: %.2f\n\n', UCL_EWMA);  % Extra newline for spacing
+
+end
+% Determine EWMA Control Limits empirically from Phase I EWMA statistics
+
+%}
+%FDR Control using Benjamini-Yekutieli (to handle multiple comparisons)
+[sorted_p_values, sorted_indices] = sort(p_values);
+m = length(p_values);
+q = 0.05;
+c_m = sum(1./(1:m));  % Benjamini-Yekutieli correction
+by_threshold = (1:m)' * (q / (m * c_m));
+significant_flags = sorted_p_values <= by_threshold;
+significant_rois = sorted_indices(significant_flags);
+
+fprintf('Number of significant ROIs after dependent FDR (Benjamini-Yekutieli): %d\n', length(significant_rois));
+if ~isempty(significant_rois)
+    fprintf('Significant ROIs (with dependent FDR control):\n');
+    disp(significant_rois);
+else
+    fprintf('No significant ROIs detected.\n');
+end
+
+
+
+
+
+####################  regions 3 and 5 shifted 
+
+  speckleImage2 =imread('speckleGear2.png');
+
+% Define the entire image size
+[rows, cols] = size(speckleImage2);
+
+% Initialize the mask to track shifted areas
+shifted_mask = false(rows, cols);
+% Shift and update mask for Region 1
+%(50:69, 50:69)
+Tempspeckle3 = speckleImage2(rows-169:rows-150, cols-169:cols-150);  % Random region 3
+shift_amount3 = normrnd(003., 1, [1, 2]);
+Tempspeckle3_shifted = imtranslate(Tempspeckle3, shift_amount3, 'bilinear', 'OutputView', 'same');
+speckleImage2(rows-169:rows-150, cols-169:cols-150) = Tempspeckle3_shifted;
+% Update the mask to include the new shifted region
+shifted_mask = update_mask(shifted_mask, [rows-169,rows-150, cols-169,cols-150], shift_amount3, rows, cols);
+
+
+Tempspeckle5 = speckleImage2(120:159,cols-189: cols-150);  % Random region 5
+shift_amount5 = normrnd(004., 1, [1, 2]);
+Tempspeckle5_shifted = imtranslate(Tempspeckle5, shift_amount5, 'bilinear', 'OutputView', 'same');
+speckleImage2(120:159,cols-189:cols-150) = Tempspeckle5_shifted;
+% Update the mask to include the new shifted region
+shifted_mask = update_mask(shifted_mask, [120, 159, cols-189, cols-150], shift_amount5, rows, cols);
+
+
+% Apply shift to the rest of the image, excluding the shifted regions
+remainingImage = speckleImage2;
+remainingImage(shifted_mask) = 0;  % Zero out the regions already shifted
+
+% Apply the global shift to the remaining part of the image
+shift_amount_global = normrnd(00., 1, [1, 2]);
+%shift_amount_global =  [0, 0];
+remainingImage_shifted = imtranslate(remainingImage, shift_amount_global, 'bilinear', 'OutputView', 'same');
+
+% Combine the shifted regions and the globally shifted remaining image
+speckleImage2(~shifted_mask) = remainingImage_shifted(~shifted_mask);
+
+speckle_cpu = double(speckleImage2);   
+%imwrite(speckleImage2, 'speckle_cpu10.png');
+
+
+%imwrite(speckle_cpu, 'speckle_cpu2.png');
+        % Compute magnitude differences for each ROI
+p_values = zeros(n_rois, 1);
+        magdiffs = zeros(n_rois, 1);
+        for j = 1:n_rois
+            roi_coords = roi_indices{j};
+            roi_window = speckle_cpu(roi_coords(1):roi_coords(1)+roi_coords(3)-1, ...
+                                     roi_coords(2):roi_coords(2)+roi_coords(4)-1);
+            roi_window_ref = g2(roi_coords(1):roi_coords(1)+roi_coords(3)-1, ...
+                                roi_coords(2):roi_coords(2)+roi_coords(4)-1);
+
+            % Frequency domain transformations
+            f2 = roi_window .* W2(1:roi_size, 1:roi_size);
+            F2 = fftshift(fft2(f2));
+            F2_mag = abs(F2);
+            F2_prime = F2_mag .* H2(1:roi_size, 1:roi_size);
+
+            f1_ref = roi_window_ref .* W2(1:roi_size, 1:roi_size);
+            F1_ref = fftshift(fft2(f1_ref));
+            F1_ref_mag = abs(F1_ref);
+            F1_prime_ref = F1_ref_mag .* H2(1:roi_size, 1:roi_size);
+
+            
+            % Compute absolute magnitude differences
+            magnitude_diff = abs(F2_prime(:) - F1_prime_ref(:));
+            
+            % Calculate median of magnitude differences within the ROI
+            median_diff = max(magnitude_diff);
+            
+            magdiffs(j) = median_diff;
+            p_values(j) = sum(in_control_magnitudes(:, j) >= magdiffs(j)) / n_simulations;
+
+        end
+%{
+ewma_stat = in_control_EWMA(end);  % Initialize EWMA statistic to last Phase I EWM
+        % Aggregate Statistic (median of ROIs)
+        global_stat = max(magdiffs)
+        
+        % Update EWMA
+        ewma_stat = lambda * global_stat + (1 - lambda) * ewma_stat
+ if ewma_stat > UCL_EWMA
+    fprintf('Global OC detected!\n');
+    fprintf('Global GLR Statistic: %.2f\n', ewma_stat);
+    fprintf('UCL: %.2f\n\n', UCL_EWMA);  % Extra newline for spacing
+else
+    fprintf('No global OC detected.\n');
+    fprintf('Global GLR Statistic: %.2f\n', ewma_stat);
+    fprintf('UCL: %.2f\n\n', UCL_EWMA);  % Extra newline for spacing
+
+end
+% Determine EWMA Control Limits empirically from Phase I EWMA statistics
+%}
+
+
+%FDR Control using Benjamini-Yekutieli (to handle multiple comparisons)
+[sorted_p_values, sorted_indices] = sort(p_values);
+m = length(p_values);
+q = 0.05;
+c_m = sum(1./(1:m));  % Benjamini-Yekutieli correction
+by_threshold = (1:m)' * (q / (m * c_m));
+significant_flags = sorted_p_values <= by_threshold;
+significant_rois = sorted_indices(significant_flags);
+
+fprintf('Number of significant ROIs after dependent FDR (Benjamini-Yekutieli): %d\n', length(significant_rois));
+if ~isempty(significant_rois)
+    fprintf('Significant ROIs (with dependent FDR control):\n');
+    disp(significant_rois);
+else
+    fprintf('No significant ROIs detected.\n');
+end
