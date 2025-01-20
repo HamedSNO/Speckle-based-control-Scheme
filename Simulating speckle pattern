@@ -27,4 +27,4 @@ speckle=abs(fftshift(fft2(IP0,600,600))).^2;
 %%%%%%%%%%%%%%simple norm the data,
 speckle=speckle./max(max(speckle(:,:)));
 imshow(speckle)
-%imwrite(speckle, 'speckleGear.png');
+%imwrite(speckle, 'speckleGear2.png');
